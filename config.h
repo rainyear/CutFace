@@ -36,5 +36,7 @@ static CvScalar COLORS[] =
 /*
 * toolkits
 */
-CvRect cvDetectFace(IplImage* img, int min, int max);
-CvRect cvMinWrapRect(CvSeq* faces, CvSize imgsize);
+CvRect cvDetectFaces(IplImage* img, int min, int max);
+CvRect cvMinWrapRect(CvSeq* faces, CvSize imgsize, float scale);
+void cvCutCenterSquare(IplImage* img, int square);
+void cvCutFaceSquare(IplImage* img, int square, CvRect face_win);
