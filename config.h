@@ -38,5 +38,10 @@ static CvScalar COLORS[] =
 */
 CvRect cvDetectFaces(IplImage* img, int min, int max);
 CvRect cvMinWrapRect(CvSeq* faces, CvSize imgsize, float scale);
-void cvCutCenterSquare(IplImage* img, int square);
-void cvCutFaceSquare(IplImage* img, int square, CvRect face_win);
+
+void cvExpandWrapRect(CvRect* wrapper, int exp);
+
+void cvCenterSquare(IplImage* img, int square, CvRect* face_square);
+void cvFaceSquare(IplImage* img, int square, CvRect faces_wrapper, CvRect* face_square);
+
+void cvCutAndSave(IplImage* src, CvRect face_square, char* dest);
