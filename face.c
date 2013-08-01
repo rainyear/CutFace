@@ -163,6 +163,7 @@ CvRect cvDetectFaces(IplImage* img, int min, int max){
 
     cvReleaseImage( &gray );
     cvReleaseImage( &small_img );
+    cvClearMemStorage( storage );
 
     return face_win;
 }
