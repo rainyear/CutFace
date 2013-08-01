@@ -15,9 +15,7 @@
 #define WIN32
 #endif
 /*
-*
 * debug showing
-*
 */ 
 void cvShowImg(IplImage* img);
 void cvCircleFaces(IplImage* img, CvSeq* faces, float scale);
@@ -41,7 +39,7 @@ CvRect cvMinWrapRect(CvSeq* faces, CvSize imgsize, float scale);
 
 void cvExpandWrapRect(CvRect* wrapper, int exp);
 
-void cvCenterSquare(IplImage* img, int square, CvRect* face_square);
-void cvFaceSquare(IplImage* img, int square, CvRect faces_wrapper, CvRect* face_square);
+void cvCenterSquare(IplImage* img, CvSize frame, CvRect* face_square);
+void cvFaceSquare(IplImage* img, CvSize frame, CvRect faces_wrapper, CvRect* face_square);
 
 void cvCutAndSave(IplImage* src, CvRect face_square, char* dest);

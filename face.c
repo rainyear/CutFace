@@ -1,20 +1,29 @@
 #include "config.h"
 
-#define DEBUG 1
+#define DEBUG 0
+#define CENTER 1
+
+#define DESTW 110
+#define DESTH 90
+#define CLIPPER 30
 
 #define SCALETO 290
-#define SCALE 1.3
+
+#define SCALE 1.5
 #define MINFACE 10
-#define MAXFACE 200
-#define EXPANDSIZE 20
+#define MAXFACE 300
 
 float scale = SCALE;
 
 int main(int argc, char** argv){
 	IplImage* source = NULL;
+	IplImage* operat = NULL;
+	CvRect clip_roi;
 	CvRect face_win;
 	CvRect face_square;
+	CvSize frame;
 
+	float dest_rate, oper_rate;
 	int square;
 	char* dest;
 
@@ -29,28 +38,55 @@ int main(int argc, char** argv){
     	printf("Could not load image file: %s\n",argv[1]);
     	exit(0);
   	}
-  	dest = argv[2];
 
-
-  	square = source->width < source->height ? source->width : source->height;
-  	// skip cutting images size below SCALETO
-  	if(square <= SCALETO){
+  	if(DESTW >= source->width - CLIPPER * 2 || DESTH >= source->height - CLIPPER * 2){
   		printf("Too small to cut.\n");
   		exit(0);
   	}
-  	
-  	face_win = cvDetectFaces(source, MINFACE, MAXFACE);
-  	if(face_win.width == 0){
-  		// no face detected, just cut center square.
-  		cvCenterSquare(source, square, &face_square);
+  	operat = cvCreateImage(cvSize(source->width - CLIPPER * 2, source->height - CLIPPER * 2),
+  							source->depth,
+  							source->nChannels);
+  	clip_roi = cvRect(CLIPPER, CLIPPER, source->width - CLIPPER * 2, source->height - CLIPPER * 2);
+  	cvSetImageROI(source, clip_roi);
+  	cvCopy(source, operat, NULL);
+
+  	dest = argv[2];
+
+  	dest_rate = DESTH * 1.0 / DESTW;
+  	oper_rate = operat->height * 1.0 / operat->width;
+
+  	if(dest_rate == oper_rate){
+  		// just scale to dest-size
+  		if(DEBUG)
+  			printf("Just scale to dest-size\n");
+  		face_square = cvRect(0, 0, operat->width, operat->height);
   	}else{
-  		// fit faces' min rectangle wrapper with square region.
-  		cvFaceSquare(source, square, face_win, &face_square);
+  		if(dest_rate < oper_rate){
+  			frame = cvSize(operat->width, cvRound((DESTH * operat->width) / (1.0 * DESTW)));
+  		}else{
+  			frame = cvSize(cvRound((DESTW * operat->height) / (1.0 * DESTH)), operat->height);
+  		}
+
+  		face_win = cvDetectFaces(operat, MINFACE, MAXFACE);
+
+  		if(face_win.width == 0 || CENTER){
+  			// no face detected, just cut center square.
+  			cvCenterSquare(operat, frame, &face_square);
+  		}else{
+  			// fit faces' min rectangle wrapper with square region.
+  			cvFaceSquare(operat, frame, face_win, &face_square);
+  		}
   	}
 
-  	cvCutAndSave(source, face_square, dest);
 
+  	if(DEBUG)
+  		printf("face_square: [%d, %d, %d, %d]\n", face_square.x, face_square.y, face_square.width, face_square.height);
+
+  	cvCutAndSave(operat, face_square, dest);
+
+  	cvResetImageROI(source);
   	cvReleaseImage(&source);
+  	cvReleaseImage(&operat);
 	return 0;
 }
 void cvCutAndSave(IplImage* src, CvRect face_square, char* dest){
@@ -59,7 +95,7 @@ void cvCutAndSave(IplImage* src, CvRect face_square, char* dest){
 	IplImage* ROImage = cvCreateImage(cvSize(face_square.width, face_square.height),
 										src->depth,
 										src->nChannels);
-	IplImage* dest_img = cvCreateImage(cvSize(SCALETO, SCALETO),
+	IplImage* dest_img = cvCreateImage(cvSize(DESTW, DESTH),
 										src->depth,
 										src->nChannels);
 	cvCopy(src, ROImage, NULL);
@@ -118,9 +154,9 @@ CvRect cvDetectFaces(IplImage* img, int min, int max){
   		if(DEBUG)
   			printf("rect:[%d, %d, %d, %d]\n", face_win.x, face_win.y, face_win.width, face_win.height);
   	}else{
-  		cvCircleFaces(img, faces, scale);
+  		if(DEBUG)
+  			cvCircleFaces(img, faces, scale);
   		face_win = cvMinWrapRect(faces, cvGetSize(img), scale);
-  		
   	}
   	//cvCircleFaces(img, faces, scale);
     //cvShowImg(img);
@@ -158,47 +194,49 @@ CvRect cvMinWrapRect(CvSeq* faces, CvSize imgsize, float scale){
 
 
 // cut!
-void cvCenterSquare(IplImage* img, int square, CvRect* face_win){
-	//CvRect face_win;
+void cvCenterSquare(IplImage* img, CvSize frame, CvRect* face_win){
+	int x = frame.width == img->width ? 0 : cvRound((img->width - frame.width) * 0.5);
+	int y = frame.height == img->height ? 0 : cvRound((img->height - frame.height) * 0.5);
 
-  	int x = img->width < img->height ? 0 : cvRound((img->width - img->height) * 0.5);
-  	int y = img->width < img->height ? cvRound((img->height - img->width) * 0.5) : 0;
+  	*face_win = cvRect(x, y, frame.width, frame.height);
 
-  	*face_win = cvRect(x, y, square, square);
-
-  	cvRectangle(img,
+  	if(DEBUG){
+  		cvRectangle(img,
     		cvPoint(face_win->x,face_win->y),
     		cvPoint(face_win->x+face_win->width, face_win->y+face_win->height),
     		CV_RGB(255,250,250), 2, 8, 0);
 
-  	cvShowImg( img );
+  		cvShowImg( img );
+  	}
 }
-void cvFaceSquare(IplImage* img, int square, CvRect face_win, CvRect* face_square){
+void cvFaceSquare(IplImage* img, CvSize frame, CvRect face_win, CvRect* face_square){
 	CvPoint face_center = cvPoint(face_win.x + cvRound(face_win.width * 0.5), face_win.y + cvRound(face_win.height * 0.5));
 
-	if(img->width > img->height){
+	if(img->height == frame.height){
 		// locate the square with cord-x
-		if(face_center.x < square * 0.5){
-			*face_square = cvRect(0, 0, square, square);// left side
-		}else if(face_center.x > img->width - square * 0.5){
-			*face_square = cvRect(img->width - square, 0, square, square);// right side
+		if(face_center.x < frame.width * 0.5){
+			*face_square = cvRect(0, 0, frame.width, frame.height);// left side
+		}else if(face_center.x > img->width - frame.width * 0.5){
+			*face_square = cvRect(img->width - frame.width, 0, frame.width, frame.height);// right side
 		}else{
-			*face_square = cvRect(face_center.x - cvRound(square * 0.5), 0, square, square);// face center is the square center
+			*face_square = cvRect(face_center.x - cvRound(frame.width * 0.5), 0, frame.width, frame.height);// face center is the square center
 		}
 	}else{
 		// locate the square withe cord-y
-		if(face_center.y < square * 0.5){
-			*face_square = cvRect(0, 0, square, square);
-		}else if(face_center.y > img->height - square * 0.5){
-			*face_square = cvRect(0, img->height - square, square, square);
+		if(face_center.y < frame.height * 0.5){
+			*face_square = cvRect(0, 0, frame.width, frame.height);
+		}else if(face_center.y > img->height - frame.height * 0.5){
+			*face_square = cvRect(0, img->height - frame.height, frame.width, frame.height);
 		}else{
-			*face_square = cvRect(0, face_center.y - cvRound(square * 0.5), square, square);
+			*face_square = cvRect(0, face_center.y - cvRound(frame.height * 0.5), frame.width, frame.height);
 		}
 	}
-	cvRectangle(img,
+	if(DEBUG){
+		cvRectangle(img,
   			cvPoint(cvRound(face_square->x), cvRound(face_square->y)),
   			cvPoint(cvRound((face_square->x + face_square->width)), cvRound((face_square->y + face_square->height))),
   			CV_RGB(255,255,255), 2, 8, 0);
 
-	cvShowImg( img );
+		cvShowImg( img );
+	}
 }
